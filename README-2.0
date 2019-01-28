@@ -1,0 +1,17 @@
+CHANGES SINCE VERSION 1.0
+-------------------------
+1. New in VoltSpot 2.0
+	a) An extension for 3D-ICs' PDN simulation. Both steady-state
+  and transient mode are supported. TSVs are modeled as RL pairs.
+	b) Support the voltage-stacked PDN structure for 3D-IC.
+  Switched-capacitor converters are included in both steady-state
+  and transient models.
+
+2. Modifications from the previous version 
+	a) When dumping/parsing padlocation files, VoltSpot 1.0 assumes that
+  the y-axis coordinate starts from 1. rev2.0 changed this and it assumes
+  that all coordinates starts with 0.
+	b) Trimmed down the file size of PDN_sim.c by tacking the matrix construction
+  part out as a separate file, matrix.c
+	c) Bug fixes
+

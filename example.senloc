@@ -1,0 +1,9 @@
+# Line Format: <sensor_location_s>\t<sensor_location_y>
+# location uses virtual coordinate system
+# comment lines begin with a '#'
+# comments and empty lines are ignored
+
+18 18
+18 36
+36 18
+36 36

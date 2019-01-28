@@ -1,0 +1,25 @@
+#Lines starting with # are used for commenting
+#Blank lines are also ignored
+
+#File Format:
+
+#<Layer Number> start from 0
+# flp file
+# number of metal layers
+# metal layer spec file
+# TSV location spec file
+
+0
+./A.flp
+./example.mlcf
+./example.tsvloc
+
+1
+./B.flp
+./example.mlcf
+./example.tsvloc
+
+2
+./C.flp
+./example.mlcf
+./example.tsvloc

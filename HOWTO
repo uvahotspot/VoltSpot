@@ -1,0 +1,319 @@
+CONTENTS
+--------
+    A) Installation
+        0) Prerequisite
+        1) Build VoltSpot
+    B) Quick usage guide for VoltSpot
+        1) Steady-state IR drop simulation
+        2) Transient voltage noise simulation
+    C) Detailed guidelines
+        1) On-chip PDN: physical metal grid and virtual grid
+        2) C4 Pads
+        3) PDN status analysis and dump
+        4) Power trace sampling interval and solver timestep
+        5) Warming up PDN in transient simulations
+        6) 3D-IC and voltage stacking (V-S)
+    D) Conclusion    
+
+INSTALLATION
+------------
+0. Prerequisite 
+
+    VoltSpot relies on SuperLU, an open-source library to solve the large 
+    and sparse linear system representing power delivery network. 
+    It is required to install SuperLU before building VoltSpot.
+    The source code can be downloaded here:
+    http://crd-legacy.lbl.gov/~xiaoye/SuperLU/superlu_4.3.tar.gz
+    Before compiling SuperLU, please replace make.inc with the configuration 
+    file that matches your platform (e.g. cp ./MAKE_INC/make.linux ./make.inc).
+    Also, please modify parameter SuperLUroot in the updated make.inc file.
+
+    Both SuperLU and VoltSpot require BLAS (Basic Linear Algebra Subprograms) 
+    library. If libblas is not installed, here is a quick guide on how to
+    build one: http://www.giammy.com/phd/blas-lapack-howto.html
+
+1. Build VoltSpot 
+
+    a) Download the VoltSpot tar ball (VoltSpot-1.0.tar.gz) following the
+       instructions at http://lava.cs.virginia.edu/VoltSpot
+    
+    b) Unzip the file using the following commands
+       >> tar -xvf VoltSpot-1.0.tar.gz
+    
+    c) Go to the VoltSpot installation directory
+       >> cd VoltSpot-1.0/
+        
+    d) Build VoltSpot
+       i)  Modify Makefile parameter to locate your own build of SuperLU:
+           SuperLUroot=/path/to/your/build/SuperLU_4.3
+    	 ii) Under Linux/UNIX systems with GNU Make and GCC, compile source code.
+           >> make
+  	
+    e) To remove all the outputs of compilation, type 'make clean'.
+       Similarly, to remove the object files alone, type 'make cleano'.
+       To view the list of files VoltSpot needs for proper build, type 
+       'make filelist'. To compile for debugging, use 'make DEBUG=1'. 
+       To compile for using with a profiler (e.g. gprof), use 'make DEBUG=2'.
+
+QUICK USAGE GUIDE FOR VOLTSPOT
+-------------------------------
+1. Steady-state IR drop simulation:
+
+VoltSpot is a trace-level simulator that takes a power trace file and a 
+floorplan file as inputs, and calculate corresponding voltage/current 
+for all nodes/branches in the PDN. It is capable of simulating both
+the static PDN noise (IR drop only) and the transient voltage fluctuations
+(the combination of IR drop, Ldi/dt and LC resonance).
+
+First, let us run the simulation with a set of default model parameters 
+listed in the file 'pdn.config', and gather the steady state IR drop onto a file. 
+This can be done by:
+>> voltspot -c pdn.config -f example.flp -p example.ptrace -run_PDN 1 \
+            -gridvol_file steady.gridIR
+
+Here, 'example.flp' describes the floorplan of an Intel-Penryn-based 2-core 
+processor and 'example.ptrace' gives the per-cycle power trace of this 
+processor for a time period of 2k cycles (running the application dedup from
+PARSEC 2.0 benchmark suite). Notice that in steady-state simulations, 
+VoltSpot will pre-process the power trace file and use the average power 
+consumption to calculate static IR drop. After simulation, VoltSpot will 
+print results overview (e.g. chip dimension, sum of chip current consumption, 
+max on-chip IR drop, etc.) to stdout. More detailed results will be dumped 
+into 'steady.gridIR', which records the IR drop (in terms of percentage Vdd,
+combines both voltage drop in vdd net and ground bounce in gnd net) for 
+all on-chip nodes. User can plot the on-chip IR drop as a 'heat map' using
+the script provided. This is done by:
+>> ./plot_onchipIR.pl steady.gridIR
+
+This command should generate figure file 'steady.gif'.
+Note that GNU plot is required to run plot_onchipIR.pl.
+
+2. Transient voltage noise simulation:
+
+The command to simulate transient PDN behavior is the following:
+>> voltspot -c pdn.config -f example.flp -p example.ptrace -v trans.vtrace
+
+With the option -v specified, VoltSpot will perform transient simulation
+and dump results into the designated file (trans.vtrace in this example).
+By default, the .vtrace file contains two parts: simulation configurations
+and results statistics. The beginning of the .vtrace file lists all the
+configuration parameters used during the simulation. The end of 
+the configuration listings is marked by line 'END_OF_CONFIGS'.
+The rest of the .vtrace file records the per-cycle statistics of the simulation
+results. The two columns show the voltage drop at the package node (pkgDrop)
+and the maximum on-chip voltage drop (max_drop). All the voltage drop values 
+are converted to percentage Vdd.
+
+DETAILED GUIDELINES
+------------------------
+1. On-chip PDN: physical metal stack and virtual grid.
+
+Power delivery network in modern silicon chips usually consists multiple on-chip
+layers of parallel metal wires. VoltSpot is capable of modeling this multi-layer
+stack structure in detail. With configuration parameter -mlayer_spec_file,
+user can specify the physical structure of metal stack by providing the pitch, 
+width, thickness and resistivity of each metal layer.
+Here is an example:
+>> voltspot -c pdn.config -f example.flp -p example.ptrace \
+            -v trans.vtrace -mlayer_spec_file example.mlcf 
+
+In this example, example.mlcf describes four metal layers.
+If user do not provide .mlcf file, VoltSpot will use default values 
+that assumes four metal layers (see function populate_default_mlayers 
+in PDN_sim.c ).
+
+VoltSpot uses a virtual grid to model on-chip PDN stack. The virtual grid
+has a regular mesh structure where each branch consists of single or 
+multiple resistor-inductor pairs. The size of the virtual grid is related 
+to the size of C4 pad array. As an example, assume that the pitch of C4 pads 
+is 250um and the chip we want to model is 1cm by 1cm large. The total number 
+of C4 pads for this chip is 1600 and they are aligned into a 40x40 array. 
+Given the C4 pad array's size, VoltSpot sets virtual grid size to an integer 
+multiple of C4 array size (e.g. 40x40, 80x80, 120x120, etc.). This integer 
+multiple is configurable through -PDN_grid_intv. Notice that although the 
+size of virtual grid is independent of wire count in each physical metal layer,
+the resistance and inductance value of virtual grid is calculated based on 
+the shape and density of physical metal wires.
+
+With the abstraction of virtual grid, we can increase simulation speed to
+study application-level noise behavior. By keeping virtual grid no smaller
+than C4 array size, we maintain the precision in modeling individual pads.
+User can increase modeling granularity by setting larger value for PDN_grid_intv.
+Increasing granularity will improve precision at the cost of simulation speed.
+To find out the size of virtual grid, user can run steady state simulation 
+and refer to line number 3 in the results printed to stdout.
+
+2. C4 Pads
+
+Since C4 pads are the only connection between the silicon chip and its 
+outside world, both power supply and chip I/O have to utilize them exclusively.
+In reality, only a portion of total C4 pads are used for power delivery and
+in VoltSpot, user can configure the number and locations of power supply pads
+with a pad location description file. Here is an example command that simulates 
+steady-state PDN with customized power supply pad distribution:
+>> voltspot -c pdn.config -f example.flp -p example.ptrace -run_PDN 1\
+            -PDN_padconfig 0 -padloc_file_in example.vgrid.padloc 
+
+First of all, setting parameter PDN_padconfig to 0 tells VoltSpot to load power 
+pad configuration from file, otherwise VoltSpot will allocate P/G pads to all 
+available pad seats. The format of .padloc file is the following:
+<Pad_type(V/G)>\t<pad_x_location>\t<pad_y_location>
+
+User can choose to describe pads' location with either virtual-grid coordinate
+or pad-grid coordinate. Parameter padloc_format switches between different 
+coordinate system for pad location parsing and dumping. The advantage of using 
+pad-grid's coordinate is that one .padloc file works for any modeling granularity
+(different PDN_grid_intv values). In both coordinate systems, (0,0) refers to 
+bottom-left corner. User can plot pad location with dot graph using the script provided.
+This is done by:
+>> ./plot_padloc.pl example.vgrid.padloc
+
+Vdd pads and ground pads will be plotted separately ('example.vddloc.pdf' and 
+'example.gndloc.pdf'). Note that GNU plot is required to run plot_padloc.pl.
+
+3. PDN status analysis and dump.
+
+Besides steady-state simulation's output to stdout and transient simulation's
+output file (.vtrace), VoltSpot provides several other options to gather and
+dump PDN noise information.
+
+-gridvol_file
+ We've shown that in steady-state simulation, option -gridvol_file dumps
+ on-chip IR drop into specified file. In transient simulation, enabling 
+ this option will make VoltSpot dump all on-chip nodes' (in vdd net only)
+ voltage. For each simulated cycle, VoltSpot will print the 2D on-chip 
+ voltage array as a row in the specified file (unraveled in row-major).
+ Notice that this file might be very large for long simulations.
+
+-senloc_file
+ Instead of printing out all nodes' voltage level, VoltSpot also provides
+ users the option to dump per-cycle voltage noise of selected on-chip node(s).
+ This is similar to monitoring on-chip voltage noise with on-chip voltage 
+ sensors, thus we name the related parameter as -senloc_file (sensor location file). 
+ Here is an example command:
+ >> voltspot -c pdn.config -f example.flp -p example.ptrace \
+             -v trans.vtrace -senloc_file example.senloc
+
+ Each line in example.senloc describes the location of a voltage sensor
+ (in virtual-grid's coordinate system). During transient simulation, 
+ VoltSpot prints all sensors' voltage noise into vtrace file (specified by -v).
+ The values were converted to percentage Vdd and they include both supply 
+ net voltage drop and ground net bounce.
+
+-padcur_file
+ In steady-sate, -padcur_file dumps all power supply C4 pad's current
+ density into specified file with the following format:
+ <Pad_type(V/G)>\t<pad_x_location>\t<pad_y_location>\t<current_density>
+
+ Here, V represents vdd pad and G represents ground pad. All current
+ density values are in A/m^2. User can switch between output coordinate 
+ systems with parameter -padloc_format. For now, we do not have functions 
+ to dump transient pad current.
+
+-vio_file
+ Besides simply printing voltage or current values out, VoltSpot could
+ also perform basic analysis on PDN noise on per-node or per-block bases.
+ This can be done through providing two extra parameters. Here is an example:
+ >> voltspot -c pdn.config -f example.flp -p example.ptrace \
+             -v trans.vtrace -PDN_noise_th 5 -vio_file trans.viomap
+
+ PDN_noise_th sets the threshold for voltage drop tolerance. For example, the
+ above command will treat voltage drop larger than 5% Vdd as a violation
+ (noise violations will threats execution correctness with timing errors).
+ After simulation, VoltSpot will dump per-node and per-block noise stats
+ into the file specified by -vio_file. trans.viomap contains two parts.
+ The first part gives per-node information (one node per line).
+ The format is the following:
+   <x_loc>\t<y_loc>\t<vio_count>\t<avg_drop>\t<max_drop>
+   x_loc is the node's x location
+   y_loc is the node's y location
+   vio_count is the number of cycles with noise violations
+   avg_drop is the average voltage drop across all of cycles
+   max_drop is the maximum voltage drop across all of cycles
+
+ The second part of trans.viomap provides per-block stats (one block per line).
+ The format is the following:
+   <Block_Name>\t<vio_count>\t<max_drop>
+   Block_Name is the name of the block.
+   vio_count is the number of cycles that any where within the block experiences
+             noise violations.
+   max_drop is the maximum voltage drop across all the entire block.
+
+VoltSpot models on-chip PDN with tens of thousands of RLC components.
+Instead of dumping per-cycle voltage levels for all nodes and post 
+process simulation results, we encourage users to integrate their noise
+sensing and analysis modules into VoltSpot to save both processing time
+and disk space. PDN_analyze.c includes all current functions for on-line 
+noise analysing and PDN stats dumping. We hope it provides a starting 
+point and references for integrating your own modules.
+
+4. Power trace sampling interval and solver timestep
+
+For transient simulations, each line in the power trace input file (.ptrace) 
+represents the processor's average power consumption over a certain period of time. 
+This sampling time period, or sampling interval, is configurable through two parameters:
+-proc_clock_freq : processor's clock frequency.
+-ptrace_sampling_intvl : sampling interval in terms of clock cycles.
+
+We use an implicit method with fixed timestep to solve the PDN's RLC circuit.
+Therefore the length of solver timestep is directly related to both simulation 
+speed and result accuracy. In fact, increasing solver's timestep length
+reduces simulation time at the cost larger numerical error.
+Our test results indicate that with the default settings listed in pdn.config,
+a timestep of 50 pico second results in no more than 10e-4 error ratio.
+The length of timestep can be specified through parameter -PDN_step_percycle.
+To be more specific, timestep = 1/(proc_clock_freq * PDN_step_percycle).
+For example, if processor frequency is 2GHz (500 ps clock period), if we want
+to make timestep equal to 50ps, we should set PDN_step_percycle to 10.
+
+5. Warming up PDN in transient simulations.
+
+Due to the presence of capacitors and inductors, the status of PDN is dependant
+on its initial status. In order to independently exam the noise behavior of a 
+particular program trace, the PDN should be 'warmed up' before simulating the 
+trace of interest. For each transient simulation, VoltSpot assumes that the 
+initial voltages of all nodes in vdd/gnd net are equal to Vdd/0, thus all 
+capacitors in the PDN are fully charged before the simulation starts. This way 
+we can avoid large rush current toward capacitors during a 'cold start'. However, 
+due to the large current step introduced by the first power trace line 
+(the initial current consumption assumed to be zero), the beginning of a transient 
+simulation might still experience larger voltage fluctuations. To 'skip' this noisy 
+period, user can specify warm up period with parameter PDN_ptrace_warmup. 
+For example, the following cmd line performs transient simulation and use the 
+first 1000 lines in example.ptrace to warm up PDN:
+>> voltspot -c pdn.config -f example.flp -p example.ptrace \
+            -v trans.vtrace -PDN_ptrace_warmup 1000
+
+Again, the number specified by PDN_ptrace_warmup represent the number of LINES in
+ptrace file. During warm up period, VoltSpot does not perform any stats analysis 
+or dump any results, but still simulate the PDN' RLC network in detail.
+
+6. 3D-IC and voltage stacking (V-S)
+
+Starting from version 2.0, VoltSpot supports 3D-ICs' PDN modeling. To simulate
+a 3D system's PDN noise, users needs to provide the floorplans of all layers
+(in separate files), the power maps/traces (in a single file), the information
+about all layers' metal/TSV structure, and a layer config file (.lcf) that tells
+VoltSpot how to construct the 3D system. The subdirectory ./3D_examples contains
+all the necessary files for an example 3D simulation. Here are the example commands
+to run:
+
+>> cd ./3D_examples
+>> ../voltspot -c ../pdn.config -f A.flp -p 3layer.ptrace -layer_file_3D 3layer.lcf -run_PDN 1 -PDN_padpitch 200e-6
+
+By default, VoltSpot simulates a regular PDN structure with TSVs populated at all
+virtual grid nodes. Users can change the TSV configuration by setting -TSV_config to 0
+and VoltSpot will load all layers' TSV distributions from the .tsvloc files specified in
+the .lcf file. To simulate voltage-stacked PDNs, the -v_stacking parameter should be set to 1,
+and the locations of the integrated SC converters can be configured through -IVR_loc_file.
+For more information on V-S PDN, please refer to our DAC15 and ISLPED15 papers.
+
+CONCLUSION
+----------
+While this document has attempted to provide a detailed overview of
+VoltSpot's capabilities and guidelines for its use, the maximum amount
+of information can be obtained only from the source code itself.
+In case of further questions, please send e-mail to the joint HotSpot/VoltSpot 
+user group at the address "hotspot AT cs.virginia.edu". 
+To subscribe to the list, please visit
+http://www.cs.virginia.edu/mailman/listinfo/hotspot.

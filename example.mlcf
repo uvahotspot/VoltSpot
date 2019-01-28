@@ -1,0 +1,51 @@
+#Lines starting with # are used for commenting
+#Blank lines are also ignored
+
+#File Format:
+
+#<Layer Number> start from 0
+#<metal pitch     in m>
+#<metal width     in m>
+#<metal thickness in m>
+#<metal Resistivity>
+#<Direction 0/1 (x/y or h/v)>
+
+#Example
+#0
+#30e-6
+#10e-6
+#3.5e-6
+#1.68e-8 
+#0
+
+# Please make sure that:
+# 1. adjacent metal layers have different direction
+# 2. metal layer 0 is horizontal (0)
+
+0
+30e-6
+10e-6
+3.5e-6
+1.68e-8 
+0
+
+1
+30e-6
+10e-6
+3.5e-6
+1.68e-8 
+1
+
+2
+810e-9
+400e-9
+720e-9
+1.68e-8 
+0
+
+3
+810e-9
+400e-9
+720e-9
+1.68e-8 
+1
