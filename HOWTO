@@ -314,6 +314,6 @@ While this document has attempted to provide a detailed overview of
 VoltSpot's capabilities and guidelines for its use, the maximum amount
 of information can be obtained only from the source code itself.
 In case of further questions, please send e-mail to the joint HotSpot/VoltSpot 
-user group at the address "hotspot AT cs.virginia.edu". 
+user group at the address "hotspot AT virginia.edu". 
 To subscribe to the list, please visit
-http://www.cs.virginia.edu/mailman/listinfo/hotspot.
+https://lists.virginia.edu/sympa/info/hotspot.
