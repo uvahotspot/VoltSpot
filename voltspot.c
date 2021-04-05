@@ -276,6 +276,7 @@ int main(int argc, char **argv)
   if(config.PDN_multi_dom && config.v_stacking)
     fatal("Multi_dom and v_stacking do not work together yet.\n");
 
+
   /* allocate and initialize the R model for PDN	*/
   model = alloc_model(&config, flp);
 
@@ -322,6 +323,7 @@ int main(int argc, char **argv)
 
   if(read_names(pin, names) != n)
     fatal("no. of units in floorplan and trace file differ\n");
+
 
   vals = dvector(MAX_UNITS);
   /* Initialize Matrix, power trace*/

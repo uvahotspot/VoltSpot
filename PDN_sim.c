@@ -392,9 +392,11 @@ model_t *alloc_model(PDN_config_t *config, PDN_flp_t *flp_default)
   model->cols = model->config.PDN_grid_intv * (pad_grid_col - 1) + 1;
 
   // Sanity check on problem size
-  // Force exit if grid size is to large
+  // Force exit if grid size is too large
   if((model->rows < 0) || (model->cols < 0))
     fatal("On-chip grid size calculation overflow! Check your floorplan unit (Should all in meter, not mm or um).\n");
+  if((pad_grid_col == 1) && (pad_grid_row == 1))
+    fatal("This design only has one C4 pad! Please double-check your floorplan and/or C4 pad pitch\n");
   if((model->rows > MAX_DIM) || (model->cols > MAX_DIM))
     fatal("Problem size exceeding limit!\nCheck your floorplan unit (Should all in meter, not mm or um)\nIf you do want to specify a problem that large, please override this assertion in function alloc_model\n");
 
@@ -1356,7 +1358,7 @@ void populate_C4_PDN(model_t *model)
   }
   else if (pl == CONFIG_ALL){
       // All seats are filled with pads
-      for(i=0; i<rpg; i++)
+      for(i=0; i<rpg; i++) {
         for(j=0; j<cpg; j++){
             r_cordt = i * itv_row;
             c_cordt = j * itv_col;
@@ -1367,6 +1369,7 @@ void populate_C4_PDN(model_t *model)
                 model->c4->gnd_loc[r_cordt][c_cordt] |= PGPAD;
             }
         }
+      }
   }
   else{
       fatal("Unexcepted pad configuration setup\n");
@@ -1384,6 +1387,7 @@ void populate_C4_PDN(model_t *model)
   }
 
   set_current_limit(model);
+
 
   // Assign pad ID, map pad ID to grid index
   for(i=0; i<model->c4->pad_grid_row*model->c4->pad_grid_col; i++){
